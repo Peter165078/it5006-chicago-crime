@@ -77,27 +77,75 @@ def load_data(year):
 # ==========================================
 # 📺 场景 A: 启动页 (Landing Page)
 # ==========================================
+# ==========================================
+# 📺 场景 A: 启动页 (Landing Page)
+# ==========================================
 if st.session_state.app_mode == 'Welcome':
     st.markdown("<br><br>", unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("""
         <div class="launch-card">
             <h1 style="font-size: 3em; margin-bottom: 10px;">🚔 Chicago Crime Intel</h1>
-            <p style="color: #6b7280; font-size: 1.2em; margin-bottom: 30px;">IT5006 Phase 1: Interactive Crime Analytics System</p>
+            <p style="color: #6b7280; font-size: 1.2em; margin-bottom: 30px;">
+                IT5006 Phase 1: Interactive Crime Analytics System
+            </p>
         </div>
         """, unsafe_allow_html=True)
         
-        # 扫描可用年份
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # --- 🔍 修复版扫描逻辑：必须显式查找 .csv.zip ---
         available_years = []
+        # 根据你的截图，数据在 apps/dashboard/split_data_by_year 下
+        # 程序运行在 apps/dashboard 下，所以相对路径是 split_data_by_year
+        search_dirs = [".", "split_data_by_year"] 
+        
         for y in range(2014, 2025):
-            # 只要能找到对应的 zip 就认为该年份可用
-            if any(os.path.exists(os.path.join(d, f"chicago_crime_{y}.csv.zip")) for d in [".", "split_data_by_year"]):
+            found = False
+            for d in search_dirs:
+                # 这里就是你之前缺失的逻辑：检查 .csv.zip
+                if os.path.exists(os.path.join(d, f"chicago_crime_{y}.csv.zip")) or \
+                   os.path.exists(os.path.join(d, f"chicago_crime_{y}.zip")) or \
+                   os.path.exists(os.path.join(d, f"chicago_crime_{y}.csv")):
+                    found = True
+                    break
+            if found:
                 available_years.append(y)
         
+        # 如果没扫到，保底 2024
         if not available_years: available_years = [2024]
         
         st.markdown("### 📅 Select Analysis Year")
+        
+        # --- 🎨 强制显示漂亮的红色滑块 ---
+        # 只要有数据，就用 Select Slider
+        if len(available_years) > 1:
+            chosen_year = st.select_slider(
+                "Select Year", 
+                options=sorted(available_years), 
+                value=available_years[-1], 
+                label_visibility="collapsed"
+            )
+        else:
+            # 只有一年也显示滑块样式，保持美观统一
+            chosen_year = st.select_slider(
+                "Select Year",
+                options=available_years,
+                value=available_years[0],
+                label_visibility="collapsed"
+            )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        if st.button(f"🚀 Launch Dashboard ({chosen_year})", type="primary", use_container_width=True):
+            st.session_state.selected_year = chosen_year
+            st.session_state.app_mode = 'Dashboard'
+            st.rerun()
+
+    st.markdown("<br><br><p style='text-align: center; color: #9ca3af;'>© Team 22 | Powered by Streamlit</p>", unsafe_allow_html=True)
+    
         # 修复 RangeError
         if len(available_years) > 1:
             chosen_year = st.select_slider("Select Year", options=sorted(available_years), value=available_years[-1], label_visibility="collapsed")
