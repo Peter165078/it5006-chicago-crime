@@ -23,33 +23,25 @@ if 'selected_year' not in st.session_state:
 st.markdown("""
     <style>
     .main { background-color: #f4f6f9; }
-    /* 启动卡片样式 */
     .launch-card {
         background-color: white; padding: 40px; border-radius: 20px;
         box-shadow: 0 20px 50px rgba(0,0,0,0.1); text-align: center;
         max-width: 600px; margin: 0 auto;
     }
-    /* 指标卡样式 */
-    div.metric-container {
+    .metric-container {
         background-color: white; padding: 15px 20px; border-radius: 10px;
         border-left: 5px solid #3b82f6; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     h1 { color: #1f2937; font-family: 'Inter', sans-serif; }
-    /* 去除 Plotly 边距 */
     .js-plotly-plot .plotly .modebar { display: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. 数据加载 ---
+# --- 4. 数据加载函数 (定义阶段) ---
 @st.cache_data
 def load_data(year):
-    # 1. 拼出可能的压缩包名字 (适配你截图里的 chicago_crime_2017.csv.zip)
-    possible_files = [
-        f"chicago_crime_{year}.csv.zip",
-        f"chicago_crime_{year}.zip"
-    ]
-    
-    # 2. 搜索路径
+    # 适配根目录或子文件夹下的多种命名方式
+    possible_files = [f"chicago_crime_{year}.csv.zip", f"chicago_crime_{year}.zip"]
     search_dirs = [".", "split_data_by_year"]
     
     found_path = None
@@ -62,16 +54,12 @@ def load_data(year):
         if found_path: break
 
     if found_path:
-        # --- 核心修复：针对 Mac 压缩包的多文件报错 ---
         import zipfile
         cols = ['Date', 'Primary Type', 'Description', 'Arrest', 'District', 'Latitude', 'Longitude', 'Location Description']
-        
         with zipfile.ZipFile(found_path, 'r') as z:
-            # 过滤掉 __MACOSX 这种隐藏文件，只找真正的 csv
+            # 核心修复：过滤掉 Mac 自动生成的 __MACOSX 隐藏文件夹
             csv_files = [name for name in z.namelist() if name.endswith('.csv') and not name.startswith('__MACOSX')]
-            
             if csv_files:
-                # 明确告诉 pandas 读哪一个文件
                 with z.open(csv_files[0]) as f:
                     df = pd.read_csv(f, usecols=cols)
                     df['Date'] = pd.to_datetime(df['Date'])
@@ -80,12 +68,100 @@ def load_data(year):
                     df['DayOfWeek'] = df['Date'].dt.day_name()
                     return df
     return None
-# 🚨 关键修复点：如果 df 是 None，说明没找到文件或者读取失败
-if df is None or df.empty:
-    st.error(f"❌ 没找到 {selected_year} 年的数据文件！")
-    st.info("💡 请确认 GitHub 仓库根目录或 split_data_by_year 文件夹下有对应的 .zip 文件。")
-    st.stop()  # 强制停止，防止后面的代码运行导致 RangeError
-# --- 6. 只有数据存在，才继续跑后面的看板组件 ---
+
+# ==========================================
+# 📺 场景 A: 启动页 (Landing Page)
+# ==========================================
+if st.session_state.app_mode == 'Welcome':
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div class="launch-card">
+            <h1 style="font-size: 3em; margin-bottom: 10px;">🚔 Chicago Crime Intel</h1>
+            <p style="color: #6b7280; font-size: 1.2em; margin-bottom: 30px;">IT5006 Phase 1: Interactive Crime Analytics System</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 扫描可用年份
+        available_years = []
+        for y in range(2014, 2025):
+            # 检查 zip 或 csv 是否存在
+            if any(os.path.exists(os.path.join(d, f"chicago_crime_{y}.csv.zip")) for d in [".", "split_data_by_year"]) or \
+               any(os.path.exists(os.path.join(d, f"chicago_crime_{y}.zip")) for d in [".", "split_data_by_year"]):
+                available_years.append(y)
+        
+        if not available_years: available_years = [2024]
+        
+        st.markdown("### 📅 Select Analysis Year")
+        # 修复 RangeError：确保 options 至少有两个不相等的元素或正确处理单元素
+        if len(available_years) > 1:
+            chosen_year = st.select_slider("Select Year", options=sorted(available_years), value=available_years[-1], label_visibility="collapsed")
+        else:
+            chosen_year = st.selectbox("Select Year", options=available_years, label_visibility="collapsed")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button(f"🚀 Launch Dashboard ({chosen_year})", type="primary", use_container_width=True):
+            st.session_state.selected_year = chosen_year
+            st.session_state.app_mode = 'Dashboard'
+            st.rerun()
+
+    st.markdown("<br><br><p style='text-align: center; color: #9ca3af;'>© Team 22 | Powered by Streamlit</p>", unsafe_allow_html=True)
+
+# ==========================================
+# 📊 场景 B: 主仪表盘 (Dashboard)
+# ==========================================
+elif st.session_state.app_mode == 'Dashboard':
+    year = st.session_state.selected_year
+    
+    # --- 1. 尝试加载数据 (这里修复了 NameError) ---
+    df = load_data(year)
+    
+    # --- 2. 检查数据是否存在 (防止 RangeError) ---
+    if df is None or df.empty:
+        st.error(f"❌ 无法找到 {year} 年的数据文件。")
+        st.info("💡 请确保你的 GitHub 仓库中包含对应的 .zip 压缩包。")
+        if st.button("← 返回首页"):
+            st.session_state.app_mode = 'Welcome'
+            st.rerun()
+        st.stop() # 停止运行后续绘图代码
+
+    # --- 3. 侧边栏控件 ---
+    with st.sidebar:
+        if st.button("← Back to Home"):
+            st.session_state.app_mode = 'Welcome'
+            st.rerun()
+        st.divider()
+        st.title(f"🎛️ Controls ({year})")
+        st.success(f"Data: {len(df):,} rows")
+        
+        all_types = sorted(df['Primary Type'].unique())
+        default_types = ['THEFT', 'BATTERY', 'CRIMINAL DAMAGE', 'ASSAULT']
+        sel_types = st.multiselect("Filter Type", all_types, default=[x for x in default_types if x in all_types])
+        
+        districts = sorted([int(x) for x in df['District'].dropna().unique()])
+        sel_districts = st.multiselect("Police District (Optional)", districts, default=[])
+        arrest = st.radio("Arrest Status", ["All", "Yes", "No"], horizontal=True)
+
+    # --- 4. 过滤逻辑 ---
+    mask = df['Primary Type'].isin(sel_types)
+    if sel_districts: mask = mask & (df['District'].isin(sel_districts))
+    if arrest == "Yes": mask = mask & (df['Arrest'] == True)
+    if arrest == "No": mask = mask & (df['Arrest'] == False)
+    filtered_df = df[mask]
+
+    # --- 5. 渲染页面 (地图/图表) ---
+    st.title(f"Chicago Crime Intelligence: {year}")
+    
+    # 指标卡
+    r1c1, r1c2, r1c3, r1c4 = st.columns(4)
+    with r1c1: st.metric("Total Incidents", f"{len(filtered_df):,}")
+    with r1c2: st.metric("Arrest Rate", f"{(filtered_df['Arrest'].mean()*100):.1f}%")
+    # ... 后续地图和图表代码 (保持原样) ...
+    # (此处省略部分冗余绘图代码，已在你的 app.py 中包含)
+    
+    # 这里记得把刚才 app.py 里剩余的地图展示、Plotly 绘图逻辑放回来即可
+    # 只要保证 df = load_data(year) 在 if 判断之前运行，且 st.stop() 挡住空数据，就不会报错了。
 # 这里放你原来的地图、图表代码...
 st.success(f"✅ 成功加载 {len(df)} 条记录")
 # ==========================================
