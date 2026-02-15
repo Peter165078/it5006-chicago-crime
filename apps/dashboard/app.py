@@ -72,8 +72,6 @@ def load_data(year):
             return None
     return None
 
-# ❌ 删除了这里原本错误的 if df is None 代码块，因为它会导致 NameError
-
 # ==========================================
 # 📺 场景 A: 启动页 (Landing Page)
 # ==========================================
@@ -96,14 +94,11 @@ if st.session_state.app_mode == 'Welcome':
         
         # --- 🔍 修复版扫描逻辑：必须显式查找 .csv.zip ---
         available_years = []
-        # 根据你的截图，数据在 apps/dashboard/split_data_by_year 下
-        # 程序运行在 apps/dashboard 下，所以相对路径是 split_data_by_year
         search_dirs = [".", "split_data_by_year"] 
         
         for y in range(2014, 2025):
             found = False
             for d in search_dirs:
-                # 这里就是你之前缺失的逻辑：检查 .csv.zip
                 if os.path.exists(os.path.join(d, f"chicago_crime_{y}.csv.zip")) or \
                    os.path.exists(os.path.join(d, f"chicago_crime_{y}.zip")) or \
                    os.path.exists(os.path.join(d, f"chicago_crime_{y}.csv")):
@@ -118,7 +113,6 @@ if st.session_state.app_mode == 'Welcome':
         st.markdown("### 📅 Select Analysis Year")
         
         # --- 🎨 强制显示漂亮的红色滑块 ---
-        # 只要有数据，就用 Select Slider
         if len(available_years) > 1:
             chosen_year = st.select_slider(
                 "Select Year", 
@@ -127,7 +121,6 @@ if st.session_state.app_mode == 'Welcome':
                 label_visibility="collapsed"
             )
         else:
-            # 只有一年也显示滑块样式，保持美观统一
             chosen_year = st.select_slider(
                 "Select Year",
                 options=available_years,
@@ -143,20 +136,6 @@ if st.session_state.app_mode == 'Welcome':
             st.rerun()
 
     st.markdown("<br><br><p style='text-align: center; color: #9ca3af;'>© Team 22 | Powered by Streamlit</p>", unsafe_allow_html=True)
-    
-        # 修复 RangeError
-        if len(available_years) > 1:
-            chosen_year = st.select_slider("Select Year", options=sorted(available_years), value=available_years[-1], label_visibility="collapsed")
-        else:
-            chosen_year = st.selectbox("Select Year", options=available_years, label_visibility="collapsed")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button(f"🚀 Launch Dashboard ({chosen_year})", type="primary", use_container_width=True):
-            st.session_state.selected_year = chosen_year
-            st.session_state.app_mode = 'Dashboard'
-            st.rerun()
-
-    st.markdown("<br><br><p style='text-align: center; color: #9ca3af;'>© Team 22 | Powered by Streamlit</p>", unsafe_allow_html=True)
 
 # ==========================================
 # 📊 场景 B: 主仪表盘 (Dashboard)
@@ -164,7 +143,7 @@ if st.session_state.app_mode == 'Welcome':
 elif st.session_state.app_mode == 'Dashboard':
     year = st.session_state.selected_year
     
-    # ✅ 正确逻辑 1: 先加载数据，把结果赋值给 df
+    # ✅ 正确逻辑 1: 先加载数据
     df = load_data(year)
     
     # ✅ 正确逻辑 2: 拿到 df 后，立刻检查它是不是空的
@@ -174,7 +153,7 @@ elif st.session_state.app_mode == 'Dashboard':
         if st.button("← 返回首页"):
             st.session_state.app_mode = 'Welcome'
             st.rerun()
-        st.stop() # 停止运行，防止后面报错
+        st.stop() # 停止运行
 
     # ✅ 正确逻辑 3: 数据没问题了，才开始渲染页面
     # --- 侧边栏 ---
